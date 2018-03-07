@@ -1,0 +1,41 @@
+version: 0.2
+phases:
+  install:
+    commands:
+      - apt-get update -y
+      - apt-get install -y software-properties-common
+      - add-apt-repository ppa:openjdk-r/ppa
+      - apt-get update -y
+      - apt-get install -y openjdk-8-jdk
+      - echo Installing maven...
+      - wget http://apache.mirror.anlx.net/maven/maven-3/3.5.2/binaries/apache-maven-3.5.2-bin.tar.gz
+      - tar -zxvf apache-maven-3.5.2-bin.tar.gz
+      - echo $PWD
+      - MAVEN_HOME=$PWD/apache-maven-3.5.2
+      - echo Maven home set to $MAVEN_HOME
+      - PATH=$PATH:$MAVEN_HOME/bin
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - $(aws ecr get-login)
+      - DOCKER_TAG="$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | head -c 8)"
+      - echo Created docker tag $DOCKER_TAG
+      - IMAGE_URI="${REPOSITORY_URI}:${DOCKER_TAG}"
+  build:
+    commands:
+      - echo Starting maven build on `date`...
+      - mvn install
+      - echo Building the Docker image...
+      - docker build mujina-idp/ --tag "$IMAGE_URI"
+  post_build:
+    commands:
+      - echo Pushing the Docker image to... "$IMAGE_URI"
+      - docker push "$IMAGE_URI"
+      - echo '{ "tag":"'$DOCKER_TAG'" }' >> build_tag.json
+      - cat build_tag.json
+      - echo 'Create Parameter Store entry for use in second phase of build.'
+      - aws ssm put-parameter --type String --name BUILD_IMAGE --value "$IMAGE_URI"
+artifacts:
+  files:
+      - build_tag.json
+  discard-paths: yes
