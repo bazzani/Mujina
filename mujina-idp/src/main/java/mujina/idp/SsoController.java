@@ -56,12 +56,6 @@ public class SsoController {
 
     String assertionConsumerServiceURL = idpConfiguration.getAcsEndpoint() != null ? idpConfiguration.getAcsEndpoint() : authnRequest.getAssertionConsumerServiceURL();
 
-    if(postRequest == true) {
-      System.out.println("Its a POST");
-    } else {
-      System.out.println("Its NOT a POST");
-    }
-
     SAMLPrincipal principal = new SAMLPrincipal(
       authentication.getName(),
       NameIDType.UNSPECIFIED,
