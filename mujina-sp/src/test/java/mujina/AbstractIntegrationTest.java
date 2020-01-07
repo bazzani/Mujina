@@ -7,8 +7,8 @@ import org.apache.commons.io.IOUtils;
 import org.junit.Before;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.context.embedded.LocalServerPort;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.web.server.LocalServerPort;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.test.context.junit4.SpringRunner;
 
@@ -16,7 +16,6 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -79,7 +78,7 @@ public abstract class AbstractIntegrationTest {
 
     ZonedDateTime date = ZonedDateTime.now();
     String now = date.format(DateTimeFormatter.ISO_INSTANT);
-    String samlResponse = IOUtils.toString(new ClassPathResource("saml_response.xml").getInputStream(),Charset.defaultCharset());
+    String samlResponse = IOUtils.toString(new ClassPathResource("saml_response.xml").getInputStream(), Charset.defaultCharset());
 
     samlResponse = samlResponse
       .replaceAll("@@IssueInstant@@", now)

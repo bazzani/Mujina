@@ -25,7 +25,6 @@ import org.springframework.security.saml.SAMLAuthenticationProvider;
 import org.springframework.security.saml.SAMLEntryPoint;
 import org.springframework.security.saml.SAMLProcessingFilter;
 import org.springframework.security.saml.context.SAMLContextProvider;
-import org.springframework.security.saml.context.SAMLContextProviderImpl;
 import org.springframework.security.saml.key.JKSKeyManager;
 import org.springframework.security.saml.metadata.CachingMetadataManager;
 import org.springframework.security.saml.metadata.ExtendedMetadata;
@@ -101,7 +100,7 @@ public class WebSecurityConfigurer extends WebSecurityConfigurerAdapter {
     WebSSOProfileOptions webSSOProfileOptions = new WebSSOProfileOptions();
     webSSOProfileOptions.setIncludeScoping(false);
 
-    SAMLEntryPoint samlEntryPoint = new SAMLEntryPoint();
+    SAMLEntryPoint samlEntryPoint = new ConfigurableSAMLEntryPoint();
     samlEntryPoint.setFilterProcessesUrl("login");
     samlEntryPoint.setDefaultProfileOptions(webSSOProfileOptions);
     return samlEntryPoint;
@@ -122,7 +121,7 @@ public class WebSecurityConfigurer extends WebSecurityConfigurerAdapter {
   protected void configure(HttpSecurity http) throws Exception {
     http
       .authorizeRequests()
-      .antMatchers("/", "/metadata", "/favicon.ico", "/css.*", "/api/**", assertionConsumerServiceURLPath + "/**").permitAll()
+      .antMatchers("/", "/metadata", "/favicon.ico", "/*.css", "/sp.js", "/api/**", assertionConsumerServiceURLPath + "/**").permitAll()
       .anyRequest().hasRole("USER")
       .and()
       .httpBasic().authenticationEntryPoint(samlEntryPoint())
@@ -139,7 +138,7 @@ public class WebSecurityConfigurer extends WebSecurityConfigurerAdapter {
   public SavedRequestAwareAuthenticationSuccessHandler successRedirectHandler() {
     SavedRequestAwareAuthenticationSuccessHandler successRedirectHandler =
       new SavedRequestAwareAuthenticationSuccessHandler();
-    successRedirectHandler.setDefaultTargetUrl("/user");
+    successRedirectHandler.setDefaultTargetUrl("/user.html");
     return successRedirectHandler;
   }
 

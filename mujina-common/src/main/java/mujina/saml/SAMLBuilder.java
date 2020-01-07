@@ -2,7 +2,26 @@ package mujina.saml;
 
 import org.joda.time.DateTime;
 import org.opensaml.Configuration;
-import org.opensaml.saml2.core.*;
+import org.opensaml.saml2.core.Assertion;
+import org.opensaml.saml2.core.Attribute;
+import org.opensaml.saml2.core.AttributeStatement;
+import org.opensaml.saml2.core.AttributeValue;
+import org.opensaml.saml2.core.Audience;
+import org.opensaml.saml2.core.AudienceRestriction;
+import org.opensaml.saml2.core.AuthenticatingAuthority;
+import org.opensaml.saml2.core.AuthnContext;
+import org.opensaml.saml2.core.AuthnContextClassRef;
+import org.opensaml.saml2.core.AuthnStatement;
+import org.opensaml.saml2.core.Conditions;
+import org.opensaml.saml2.core.Issuer;
+import org.opensaml.saml2.core.NameID;
+import org.opensaml.saml2.core.NameIDType;
+import org.opensaml.saml2.core.Status;
+import org.opensaml.saml2.core.StatusCode;
+import org.opensaml.saml2.core.StatusMessage;
+import org.opensaml.saml2.core.Subject;
+import org.opensaml.saml2.core.SubjectConfirmation;
+import org.opensaml.saml2.core.SubjectConfirmationData;
 import org.opensaml.xml.XMLObject;
 import org.opensaml.xml.XMLObjectBuilderFactory;
 import org.opensaml.xml.io.MarshallingException;
@@ -57,7 +76,6 @@ public class SAMLBuilder {
     subjectConfirmationData.setRecipient(recipient);
     subjectConfirmationData.setInResponseTo(inResponseTo);
     subjectConfirmationData.setNotOnOrAfter(new DateTime().plusMinutes(8 * 60));
-    subjectConfirmationData.setAddress(recipient);
 
     subjectConfirmation.setSubjectConfirmationData(subjectConfirmationData);
 
@@ -104,6 +122,8 @@ public class SAMLBuilder {
     audienceRestriction.getAudiences().add(audience);
 
     Conditions conditions = buildSAMLObject(Conditions.class, Conditions.DEFAULT_ELEMENT_NAME);
+    conditions.setNotBefore(new DateTime().minusMinutes(3));
+    conditions.setNotOnOrAfter(new DateTime().plusMinutes(3));
     conditions.getAudienceRestrictions().add(audienceRestriction);
     assertion.setConditions(conditions);
 
@@ -136,7 +156,7 @@ public class SAMLBuilder {
 
   public static Optional<String> getStringValueFromXMLObject(XMLObject xmlObj) {
     if (xmlObj instanceof XSString) {
-      return Optional.of(((XSString) xmlObj).getValue());
+      return Optional.ofNullable(((XSString) xmlObj).getValue());
     } else if (xmlObj instanceof XSAny) {
       XSAny xsAny = (XSAny) xmlObj;
       String textContent = xsAny.getTextContent();

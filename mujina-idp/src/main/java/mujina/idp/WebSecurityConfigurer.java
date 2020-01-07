@@ -2,42 +2,35 @@ package mujina.idp;
 
 import mujina.api.IdpConfiguration;
 import mujina.saml.KeyStoreLocator;
-import mujina.saml.ProxiedSAMLContextProviderLB;
 import mujina.saml.UpgradedSAMLBootstrap;
 import org.opensaml.common.binding.decoding.URIComparator;
 import org.opensaml.common.binding.security.IssueInstantRule;
-import org.opensaml.common.binding.security.MessageReplayRule;
 import org.opensaml.saml2.binding.decoding.HTTPPostDecoder;
 import org.opensaml.saml2.binding.decoding.HTTPRedirectDeflateDecoder;
 import org.opensaml.saml2.binding.encoding.HTTPPostSimpleSignEncoder;
-import org.opensaml.util.storage.MapBasedStorageService;
-import org.opensaml.util.storage.ReplayCache;
 import org.opensaml.ws.security.provider.BasicSecurityPolicy;
 import org.opensaml.ws.security.provider.StaticSecurityPolicyResolver;
 import org.opensaml.xml.parse.StaticBasicParserPool;
 import org.opensaml.xml.parse.XMLParserException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.security.SecurityProperties;
 import org.springframework.boot.web.servlet.ServletContextInitializer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.annotation.Order;
-import org.springframework.core.env.Environment;
+import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.saml.SAMLBootstrap;
-import org.springframework.security.saml.context.SAMLContextProvider;
 import org.springframework.security.saml.key.JKSKeyManager;
 import org.springframework.security.saml.util.VelocityFactory;
-import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
+import org.springframework.security.web.authentication.SimpleUrlAuthenticationFailureHandler;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import javax.xml.stream.XMLStreamException;
 import java.io.IOException;
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -49,15 +42,7 @@ import java.util.Collections;
 
 @Configuration
 @EnableWebSecurity
-public class WebSecurityConfigurer extends WebMvcConfigurerAdapter {
-
-  @Autowired
-  private Environment environment;
-
-  @Override
-  public void addViewControllers(ViewControllerRegistry registry) {
-    registry.addViewController("/login").setViewName("login");
-  }
+public class WebSecurityConfigurer implements WebMvcConfigurer {
 
   @Bean
   @Autowired
@@ -67,11 +52,10 @@ public class WebSecurityConfigurer extends WebMvcConfigurerAdapter {
                                                @Value("${idp.compare_endpoints}") boolean compareEndpoints,
                                                IdpConfiguration idpConfiguration,
                                                JKSKeyManager keyManager)
-    throws NoSuchAlgorithmException, CertificateException, InvalidKeySpecException, KeyStoreException, IOException, XMLStreamException, XMLParserException, URISyntaxException {
+    throws XMLParserException, URISyntaxException {
     StaticBasicParserPool parserPool = new StaticBasicParserPool();
     BasicSecurityPolicy securityPolicy = new BasicSecurityPolicy();
-    securityPolicy.getPolicyRules().addAll(Arrays.asList(new IssueInstantRule(clockSkew, expires),
-      new MessageReplayRule(new ReplayCache(new MapBasedStorageService(), 14400000))));
+    securityPolicy.getPolicyRules().addAll(Arrays.asList(new IssueInstantRule(clockSkew, expires)));
 
     HTTPRedirectDeflateDecoder httpRedirectDeflateDecoder = new HTTPRedirectDeflateDecoder(parserPool);
     HTTPPostDecoder httpPostDecoder = new HTTPPostDecoder(parserPool);
@@ -116,18 +100,29 @@ public class WebSecurityConfigurer extends WebMvcConfigurerAdapter {
   }
 
   @Configuration
-  @Order(SecurityProperties.ACCESS_OVERRIDE_ORDER)
   protected static class ApplicationSecurity extends WebSecurityConfigurerAdapter {
 
     @Autowired
     private IdpConfiguration idpConfiguration;
 
+    @Autowired
+    private SAMLMessageHandler samlMessageHandler;
+
+    private SAMLAttributeAuthenticationFilter authenticationFilter() throws Exception {
+      SAMLAttributeAuthenticationFilter filter = new SAMLAttributeAuthenticationFilter();
+      filter.setAuthenticationManager(authenticationManagerBean());
+      filter.setAuthenticationFailureHandler(new SimpleUrlAuthenticationFailureHandler("/login?error=true"));
+      return filter;
+    }
+
     @Override
     protected void configure(HttpSecurity http) throws Exception {
       http
         .csrf().disable()
+        .addFilterBefore(authenticationFilter(), UsernamePasswordAuthenticationFilter.class)
+        .addFilterBefore(new ForceAuthnFilter(samlMessageHandler), SAMLAttributeAuthenticationFilter.class)
         .authorizeRequests()
-        .antMatchers("/", "/metadata", "/favicon.ico", "/api/**", "/*.css").permitAll()
+        .antMatchers("/", "/metadata", "/favicon.ico", "/api/**", "/*.css", "/*.js").permitAll()
         .antMatchers("/admin/**").hasRole("ADMIN")
         .anyRequest().hasRole("USER")
         .and()
@@ -142,10 +137,14 @@ public class WebSecurityConfigurer extends WebMvcConfigurerAdapter {
     }
 
     @Override
-    public void configure(AuthenticationManagerBuilder auth) throws Exception {
+    public void configure(AuthenticationManagerBuilder auth) {
       auth.authenticationProvider(new AuthenticationProvider(idpConfiguration));
     }
 
+    @Bean
+    public AuthenticationManager authenticationManagerBean() throws Exception {
+      return super.authenticationManagerBean();
+    }
   }
 
 }

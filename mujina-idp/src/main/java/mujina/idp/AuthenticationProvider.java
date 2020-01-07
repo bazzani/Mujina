@@ -5,6 +5,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.util.StringUtils;
 
 import java.util.Arrays;
 
@@ -20,22 +21,23 @@ public class AuthenticationProvider implements org.springframework.security.auth
 
   @Override
   public Authentication authenticate(Authentication authentication) throws AuthenticationException {
+    if (StringUtils.isEmpty(authentication.getPrincipal())) {
+      throw new InvalidAuthenticationException("Principal may not be empty");
+    }
     if (idpConfiguration.getAuthenticationMethod().equals(ALL)) {
-      return new UsernamePasswordAuthenticationToken(authentication.getPrincipal(), authentication.getCredentials(), Arrays.asList(
-        new SimpleGrantedAuthority("ROLE_ADMIN"), new SimpleGrantedAuthority("ROLE_USER")
-      ));
+      return new FederatedUserAuthenticationToken(
+        authentication.getPrincipal(),
+        authentication.getCredentials(),
+        Arrays.asList(new SimpleGrantedAuthority("ROLE_ADMIN"), new SimpleGrantedAuthority("ROLE_USER")));
     } else {
       return idpConfiguration.getUsers().stream()
         .filter(token ->
           token.getPrincipal().equals(authentication.getPrincipal()) &&
             token.getCredentials().equals(authentication.getCredentials()))
-        .findFirst().map(usernamePasswordAuthenticationToken -> new UsernamePasswordAuthenticationToken(
-          //need top copy or else credentials are erased for future logins
-          usernamePasswordAuthenticationToken.getPrincipal(),
-          usernamePasswordAuthenticationToken.getCredentials(),
-          usernamePasswordAuthenticationToken.getAuthorities()
-        ))
-        .orElseThrow(() -> new AuthenticationException("User not found or bad credentials") {
+        .findFirst().map(userAuthenticationToken ->
+          //need to copy or else credentials are erased for future logins
+          userAuthenticationToken.clone())
+        .orElseThrow(() -> new InvalidAuthenticationException("User not found or bad credentials") {
         });
     }
   }
